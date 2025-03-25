@@ -31,11 +31,7 @@ async function run () {
       'Pinged your deployment. You successfully connected to MongoDB!'
     )
 
-    const userCollection = client.db('assignment12').collection('users')
-    const productCollection = client.db('assignment12').collection('products')
-    const reviewCollection = client.db('assignment12').collection('reviews')
-    const couponCollection = client.db('assignment12').collection('coupons')
-    const paymentCollection = client.db('assignment12').collection('payments')
+    
 
 
     //Users Related API
