@@ -21,7 +21,7 @@ const client = new MongoClient(uri, {
   }
 })
 
-async function run () {
+async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect()
@@ -69,12 +69,21 @@ async function run () {
       const posts = await postCollection.find({}).toArray()
       res.send(posts)
     })
-    
+
     app.get('/posts/:id', async (req, res) => {
       const id = req.params.id
       const query = { _id: new ObjectId(id) }
       const post = await postCollection.findOne(query)
       res.send(post)
+    })
+
+    app.get('/posts/latest/topSix', async (req, res) => {
+      const posts = await postCollection
+        .find()
+        .sort({ timestamp: -1 })
+        .limit(6)
+        .toArray()
+      res.send(posts)
     })
 
   } finally {
