@@ -31,7 +31,8 @@ async function run () {
       'Pinged your deployment. You successfully connected to MongoDB!'
     )
 
-    
+    const userCollection = client.db('teamProject').collection('users');
+    const postCollection = client.db('teamProject').collection('posts');
 
 
     //Users Related API
@@ -56,6 +57,17 @@ async function run () {
       const query = { email: email }
       const user = await userCollection.findOne(query)
       res.send(user)
+    })
+
+    app.post('/posts', async (req, res) => {
+      const post = req.body
+      const result = await postCollection.insertOne(post)
+      res.send(result)
+    })
+
+    app.get('/posts', async (req, res) => {
+      const posts = await postCollection.find({}).toArray()
+      res.send(posts)
     })
 
   } finally {
