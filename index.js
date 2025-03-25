@@ -69,6 +69,13 @@ async function run () {
       const posts = await postCollection.find({}).toArray()
       res.send(posts)
     })
+    
+    app.get('/posts/:id', async (req, res) => {
+      const id = req.params.id
+      const query = { _id: new ObjectId(id) }
+      const post = await postCollection.findOne(query)
+      res.send(post)
+    })
 
   } finally {
     // Ensures that the client will close when you finish/error
