@@ -86,6 +86,13 @@ async function run() {
       res.send(posts)
     })
 
+    app.get('/posts/myAdded/:email', async (req, res) => {
+      const userEmail = req.params.email
+      const query = { ownerEmail: userEmail }
+      const posts = await postCollection.find(query).toArray()
+      res.send(posts)
+    })
+
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
