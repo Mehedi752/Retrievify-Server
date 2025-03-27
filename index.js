@@ -58,6 +58,8 @@ async function run() {
       const user = await userCollection.findOne(query)
       res.send(user)
     })
+    // User related API End.
+
 
     app.post('/posts', async (req, res) => {
       const post = req.body
@@ -91,6 +93,36 @@ async function run() {
       const query = { ownerEmail: userEmail }
       const posts = await postCollection.find(query).toArray()
       res.send(posts)
+    })
+
+    app.delete('/posts/:id', async (req, res) => {
+      const id = req.params.id
+      const query = { _id: new ObjectId(id) }
+      const result = await postCollection.deleteOne(query)
+      res.send(result)
+    })
+
+    app.put('/posts/:id', async (req, res) => {
+      const id = req.params.id
+      const query = { _id: new ObjectId(id) }
+      const updatedPost = req.body
+      const updateDoc = {
+        $set: {
+          type: updatedPost.type,
+                name: updatedPost.name,
+                image: updatedPost.image,
+                category: updatedPost.category,
+                location: updatedPost.location,
+                phone: updatedPost.phone,
+                description: updatedPost.description,
+                ownerName: updatedPost.ownerName,
+                ownerEmail: updatedPost.ownerEmail,
+                ownerImage: updatedPost.ownerImage,
+                timestamp: new Date(),
+        },
+      }
+      const result = await postCollection.updateOne(query, updateDoc)
+      res.send(result)
     })
 
   } finally {
