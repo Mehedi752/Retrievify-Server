@@ -46,7 +46,7 @@ async function run() {
     const postCollection = client.db('teamProject').collection('posts');
     const claimCollection = client.db('teamProject').collection('claims');
     const paymentCollection = client.db('teamProject').collection('payments');
-    const reviewCollection = client.db('teamProject').collection('reviews');
+    const feedbackCollection = client.db('teamProject').collection('feedbacks');
 
     //Users Related API
     app.post('/users', async (req, res) => {
@@ -352,6 +352,18 @@ async function run() {
       res.redirect('http://localhost:5173/success')
     })
 
+
+    // Feedback section starts
+    app.post('/feedbacks', async (req, res) => {
+      const feedback = req.body;
+      const result = await feedbackCollection.insertOne(feedback);
+      res.send(result);
+    });
+
+    app.get('/feedbacks', async (req, res) => {
+      const feedbacks = await feedbackCollection.find({}).toArray();
+      res.send(feedbacks);
+    });
 
 
   } finally {
