@@ -2,6 +2,7 @@ const express = require('express')
 const app = express()
 const cors = require('cors')
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb')
+const { default: axios } = require('axios')
 require('dotenv').config()
 
 const port = process.env.PORT || 5000
@@ -9,6 +10,16 @@ const port = process.env.PORT || 5000
 // Middleware
 app.use(cors())
 app.use(express.json())
+app.use(express.urlencoded())
+
+// Store ID: retri67e5d7fc514bc
+// Store Password (API/Secret Key): retri67e5d7fc514bc@ssl
+// Merchant Panel URL: https://sandbox.sslcommerz.com/manage/ (Credential as you inputted in the time of registration)
+// Store name: testretriadpi
+// Registered URL: www.retrievify.com
+// Session API to generate transaction: https://sandbox.sslcommerz.com/gwprocess/v3/api.php
+// Validation API: https://sandbox.sslcommerz.com/validator/api/validationserverAPI.php?wsdl
+// Validation API (Web Service) name: https://sandbox.sslcommerz.com/validator/api/validationserverAPI.php
 
 // MongoDB Connection
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.xk6aw.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`
@@ -34,6 +45,8 @@ async function run() {
     const userCollection = client.db('teamProject').collection('users');
     const postCollection = client.db('teamProject').collection('posts');
     const claimCollection = client.db('teamProject').collection('claims');
+    const paymentCollection = client.db('teamProject').collection('payments');
+    const reviewCollection = client.db('teamProject').collection('reviews');
 
     //Users Related API
     app.post('/users', async (req, res) => {
@@ -126,8 +139,7 @@ async function run() {
     })
 
 
-    // claims section starts 
-
+    // Claims section starts 
     app.post('/claims', async (req, res) => {
       const claim = req.body;
       claim.status = 'pending';
@@ -174,66 +186,67 @@ async function run() {
 
       res.send(result);
     });
- 
+
     app.get('/claims/:id', async (req, res) => {
-        try {
-            const id = req.params.id;
-    
-            const claim = await claimCollection.aggregate([
-                { $match: { _id: new ObjectId(id) } },  
+      try {
+        const id = req.params.id;
+
+        const claim = await claimCollection.aggregate([
+          { $match: { _id: new ObjectId(id) } },
+          {
+            $lookup: {
+              from: "posts",
+              let: { postId: { $toObjectId: "$postId" } },
+              pipeline: [
                 {
-                    $lookup: {
-                        from: "posts",  
-                        let: { postId: { $toObjectId: "$postId" } },  
-                        pipeline: [
-                            { 
-                                $match: { 
-                                    $expr: { $eq: ["$_id", "$$postId"] } }  
-                            },
-                            { 
-                                $project: {  
-                                    name: 1,
-                                    category: 1,
-                                    location: 1
-                                }
-                            }
-                        ],
-                        as: "postDetails"
-                    }
-                },
-                { 
-                    $unwind: { path: "$postDetails", preserveNullAndEmptyArrays: true }  
+                  $match: {
+                    $expr: { $eq: ["$_id", "$$postId"] }
+                  }
                 },
                 {
-                    $project: {
-                        _id: 1,
-                        postId: 1,
-                        status: 1,
-                        postAuthor: 1,
-                        claimantName: 1,
-                        claimantEmail: 1,
-                        claimantImage: 1,
-                        receiptUrl:1,
-                        imageUrl:1,
-                        details:1,
-                        createdAt:1,
-                        "postDetails.name": 1,       
-                        "postDetails.category": 1,
-                        "postDetails.location": 1
-                    }
+                  $project: {
+                    name: 1,
+                    category: 1,
+                    location: 1
+                  }
                 }
-            ]).toArray();
-            
-            if (!claim.length) {
-                return res.status(404).send({ message: "Claim not found" });
+              ],
+              as: "postDetails"
             }
-            
-            res.send(claim[0]);  
-        } catch (error) {
-            res.status(500).send({ error: error.message });
+          },
+          {
+            $unwind: { path: "$postDetails", preserveNullAndEmptyArrays: true }
+          },
+          {
+            $project: {
+              _id: 1,
+              postId: 1,
+              status: 1,
+              postAuthor: 1,
+              claimantName: 1,
+              claimantEmail: 1,
+              claimantImage: 1,
+              receiptUrl: 1,
+              imageUrl: 1,
+              details: 1,
+              createdAt: 1,
+              "postDetails.name": 1,
+              "postDetails.category": 1,
+              "postDetails.location": 1
+            }
+          }
+        ]).toArray();
+
+        if (!claim.length) {
+          return res.status(404).send({ message: "Claim not found" });
         }
+
+        res.send(claim[0]);
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
     });
-    
+
     app.delete('/claims/:id', async (req, res) => {
       try {
         const id = req.params.id;
@@ -256,9 +269,91 @@ async function run() {
         res.status(500).send({ message: 'Error deleting claim' });
       }
     });
-    // claims section ends
+    // Claims section ends
 
-    
+
+    // Payment section starts
+    app.post('/create-payment-method', async (req, res) => {
+      const payment = req.body;
+      console.log("Payment data : ", payment)
+
+      const transactionId = new ObjectId().toString();
+      console.log("Transaction ID : ", transactionId)
+      payment.transactionId = transactionId;
+      const customerName = payment.name, customerEmail = payment.email;
+
+      const initiate = {
+        store_id: 'retri67e5d7fc514bc',
+        store_passwd: 'retri67e5d7fc514bc@ssl',
+        total_amount: payment.amount,
+        currency: 'BDT',
+        tran_id: transactionId,
+        success_url: 'http://localhost:5000/success-payment',
+        fail_url: 'http://localhost:5173/fail',
+        cancel_url: 'http://localhost:5173/cancel',
+        ipn_url: 'http://localhost:5000/ipn-success-payment',
+        shipping_method: 'Courier',
+        product_name: 'Computer.',
+        product_category: 'Electronic',
+        product_profile: 'general',
+        cus_name: customerName,
+        cus_email: customerEmail,
+        cus_add1: 'Dhaka',
+        cus_add2: 'Dhaka',
+        cus_city: 'Dhaka',
+        cus_state: 'Dhaka',
+        cus_postcode: '1000',
+        cus_country: 'Bangladesh',
+        cus_phone: '01711111111',
+        cus_fax: '01711111111',
+        ship_name: customerName,
+        ship_add1: 'Dhaka',
+        ship_add2: 'Dhaka',
+        ship_city: 'Dhaka',
+        ship_state: 'Dhaka',
+        ship_postcode: 1000,
+        ship_country: 'Bangladesh',
+      };
+
+      const initResponse = await axios({
+        method: 'POST',
+        url: 'https://sandbox.sslcommerz.com/gwprocess/v4/api.php',
+        data: initiate,
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        }
+      })
+      console.log("Init Response : ", initResponse?.data?.GatewayPageURL)
+      const gatewayURL = initResponse?.data?.GatewayPageURL;
+
+      const savePaymentData = await paymentCollection.insertOne(payment);
+      res.send({ gatewayURL });
+    })
+
+    app.post('/success-payment', async (req, res) => {
+      const paymentSuccessData = req.body;
+      console.log("Payment Success Data : ", paymentSuccessData)
+
+      const isValidPayment = await axios.get(`https://sandbox.sslcommerz.com/validator/api/validationserverAPI.php?val_id=${paymentSuccessData.val_id}&store_id=retri67e5d7fc514bc&store_passwd=retri67e5d7fc514bc@ssl&format=json`)
+      // console.log("Payment Validation Response : ", isValidPayment?.data)
+      // console.log("Payment Validation Response : ", isValidPayment?.data?.status)
+      if (isValidPayment?.data?.status !== 'VALID') {
+        return res.send({ message: 'Invalid Payment' })
+      }
+
+      //Update data in payment collection
+      const query = { transactionId: paymentSuccessData.tran_id };
+      const updateDoc = {
+        $set: {
+          status: 'success',
+        }
+      };
+      const result = await paymentCollection.updateOne(query, updateDoc);
+      res.redirect('http://localhost:5173/success')
+    })
+
+
+
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
