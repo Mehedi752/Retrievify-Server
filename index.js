@@ -1,11 +1,27 @@
 const express = require('express')
+const { Server } = require('socket.io');
+const { createServer } = require("http");
 const app = express()
 const cors = require('cors')
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb')
 const { default: axios } = require('axios')
+
 require('dotenv').config()
 
 const port = process.env.PORT || 5000
+
+//socket io initialize
+const server = createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:5173",
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+});
+
+
+
 
 // Middleware
 app.use(cors())
@@ -352,7 +368,36 @@ async function run() {
       res.redirect('http://localhost:5173/success')
     })
 
+    //socket io start
+  
+  const users = {}; 
 
+  io.on("connection", (socket) => {
+    console.log("User Connected:", socket.id);
+  
+    socket.on("register", (userID) => {
+      users[userID] = socket.id;
+      console.log(`User Registered: ${userID} -> Socket ID: ${socket.id}`);
+    });
+  
+    socket.on("private-message", ({ fromUser, toUser, message }) => {
+      const receiverSocketID = users[toUser];
+      if (receiverSocketID) {
+        io.to(receiverSocketID).emit("private-message", { fromUser, message });
+      }
+    });
+  
+    socket.on("disconnect", () => {
+      for (let userID in users) {
+        if (users[userID] === socket.id) {
+          delete users[userID];
+          console.log(`User Disconnected: ${userID}`);
+          break;
+        }
+      }
+    });
+  });
+    //socket io end
 
   } finally {
     // Ensures that the client will close when you finish/error
@@ -365,6 +410,6 @@ app.get('/', (req, res) => {
   res.send('Hello Programmer!')
 })
 
-app.listen(port, () => {
+server.listen(port, () => {
   console.log(`Team Project is running on port ${port}`)
 })
