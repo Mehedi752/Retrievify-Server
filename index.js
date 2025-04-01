@@ -380,101 +380,102 @@ async function run() {
 
 
 
- 
 
+    // Chat section starts
     app.get('/get-chats/:userId', async (req, res) => {
-        const currentUserId = req.params.userId;
-        try { 
-            const messages = await messagesCollection.find({
-                $or: [
-                    { sender: currentUserId },
-                    { receiver: currentUserId }
-                ]
-            }).toArray();
-    
-            if (messages.length === 0) return res.status(200).json([]);
-    
-            const chatUsers = {};
-    
-            for (const msg of messages) {
-                const otherUserId = msg.sender === currentUserId ? msg.receiver : msg.sender;
-                
-                if (!chatUsers[otherUserId] || new Date(msg.timestamp) > new Date(chatUsers[otherUserId].timestamp)) {
-                    chatUsers[otherUserId] = {
-                        lastMessage: msg.text,
-                        timestamp: msg.timestamp
-                    };
-                }
-            }
-            
-    
-            const uniqueUserIds = Object.keys(chatUsers).map(id => new ObjectId(id));
-    
-            const users = await userCollection.find({
-                _id: { $in: uniqueUserIds }
-            }).toArray();
-    
-            const response = users.map(user => {
-              let text = chatUsers[user._id.toString()].lastMessage
-              return ({
-                userName: user.name,
-                  email: user.email,
-                  lastMessage: text.length  > 23 ? text.slice(0, 6) + "..." : text,
-                  timestamp: chatUsers[user._id.toString()].timestamp
-              })
-            }); 
-            return res.status(200).json(response);
-        } catch (error) {
-            console.error('Error fetching users and last messages:', error);
-            return res.status(500).json({ message: 'Server error.' });
+      const currentUserId = req.params.userId;
+      try {
+        const messages = await messagesCollection.find({
+          $or: [
+            { sender: currentUserId },
+            { receiver: currentUserId }
+          ]
+        }).toArray();
+
+        if (messages.length === 0) return res.status(200).json([]);
+
+        const chatUsers = {};
+
+        for (const msg of messages) {
+          const otherUserId = msg.sender === currentUserId ? msg.receiver : msg.sender;
+
+          if (!chatUsers[otherUserId] || new Date(msg.timestamp) > new Date(chatUsers[otherUserId].timestamp)) {
+            chatUsers[otherUserId] = {
+              lastMessage: msg.text,
+              timestamp: msg.timestamp
+            };
+          }
         }
+
+
+        const uniqueUserIds = Object.keys(chatUsers).map(id => new ObjectId(id));
+
+        const users = await userCollection.find({
+          _id: { $in: uniqueUserIds }
+        }).toArray();
+
+        const response = users.map(user => {
+          let text = chatUsers[user._id.toString()].lastMessage
+          return ({
+            userName: user.name,
+            email: user.email,
+            photoURL: user.photoURL,
+            lastMessage: text.length > 23 ? text.slice(0, 6) + "..." : text,
+            timestamp: chatUsers[user._id.toString()].timestamp
+          })
+        });
+        return res.status(200).json(response);
+      } catch (error) {
+        console.error('Error fetching users and last messages:', error);
+        return res.status(500).json({ message: 'Server error.' });
+      }
     });
-    
+
 
     app.get('/messages', async (req, res) => {
       try {
-          const { sender, receiver } = req.query; 
+        const { sender, receiver } = req.query;
 
-          const messages = await messagesCollection.find({
-              $or: [
-                  { sender, receiver },
-                  { sender: receiver, receiver: sender }
-              ]
-          }).sort({ timestamp: 1 }).toArray();
-          
-          res.json(messages);
+        const messages = await messagesCollection.find({
+          $or: [
+            { sender, receiver },
+            { sender: receiver, receiver: sender }
+          ]
+        }).sort({ timestamp: 1 }).toArray();
+
+        res.json(messages);
       } catch (error) {
-          res.status(500).json({ error: "Failed to fetch messages" });
+        res.status(500).json({ error: "Failed to fetch messages" });
       }
-  });
+    });
 
-   
-io.on('connect', (socket) => {
-  socket.on('authenticate', (userId) => { 
-    socket.join(userId.toString());
-    console.log(`User ${userId} joined their room`);
-  });
 
-  socket.on('sendMessage', async (data) => {
-    console.log(data);
+    io.on('connect', (socket) => {
+      socket.on('authenticate', (userId) => {
+        socket.join(userId.toString());
+        console.log(`User ${userId} joined their room`);
+      });
 
-    const message = {
-      sender: data.sender,
-      text: data.text,
-      receiver: data.receiver,
-      timestamp: new Date()
-    };
-     
-    await messagesCollection.insertOne(message);
-       
-    io.to(data.receiver).emit('receiveMessage', message);
+      socket.on('sendMessage', async (data) => {
+        console.log(data);
 
-  });
- 
-  socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
-  });
-});
+        const message = {
+          sender: data.sender,
+          text: data.text,
+          receiver: data.receiver,
+          timestamp: new Date()
+        };
+
+        await messagesCollection.insertOne(message);
+
+        io.to(data.receiver).emit('receiveMessage', message);
+
+      });
+
+      socket.on('disconnect', () => {
+        console.log('User disconnected:', socket.id);
+      });
+    });
 
 
   } finally {
