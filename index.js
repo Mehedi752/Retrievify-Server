@@ -1,5 +1,7 @@
 const express = require('express')
 const app = express()
+const http = require('http');
+const { Server } = require('socket.io');
 const cors = require('cors')
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb')
 const { default: axios } = require('axios')
@@ -11,6 +13,15 @@ const port = process.env.PORT || 5000
 app.use(cors())
 app.use(express.json())
 app.use(express.urlencoded())
+
+
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*', // Allow all origins or specify your frontend URL
+    methods: ['GET', 'POST']
+  }
+});
 
 // Store ID: retri67e5d7fc514bc
 // Store Password (API/Secret Key): retri67e5d7fc514bc@ssl
@@ -47,6 +58,7 @@ async function run() {
     const claimCollection = client.db('teamProject').collection('claims');
     const paymentCollection = client.db('teamProject').collection('payments');
     const feedbackCollection = client.db('teamProject').collection('feedbacks');
+    const messagesCollection = client.db('teamProject').collection('messages');
 
     //Users Related API
     app.post('/users', async (req, res) => {
@@ -366,6 +378,106 @@ async function run() {
     });
 
 
+
+
+
+    // Chat section starts
+    app.get('/get-chats/:userId', async (req, res) => {
+      const currentUserId = req.params.userId;
+      try {
+        const messages = await messagesCollection.find({
+          $or: [
+            { sender: currentUserId },
+            { receiver: currentUserId }
+          ]
+        }).toArray();
+
+        if (messages.length === 0) return res.status(200).json([]);
+
+        const chatUsers = {};
+
+        for (const msg of messages) {
+          const otherUserId = msg.sender === currentUserId ? msg.receiver : msg.sender;
+
+          if (!chatUsers[otherUserId] || new Date(msg.timestamp) > new Date(chatUsers[otherUserId].timestamp)) {
+            chatUsers[otherUserId] = {
+              lastMessage: msg.text,
+              timestamp: msg.timestamp
+            };
+          }
+        }
+
+
+        const uniqueUserIds = Object.keys(chatUsers).map(id => new ObjectId(id));
+
+        const users = await userCollection.find({
+          _id: { $in: uniqueUserIds }
+        }).toArray();
+
+        const response = users.map(user => {
+          let text = chatUsers[user._id.toString()].lastMessage
+          return ({
+            userName: user.name,
+            email: user.email,
+            photoURL: user.photoURL,
+            lastMessage: text.length > 23 ? text.slice(0, 6) + "..." : text,
+            timestamp: chatUsers[user._id.toString()].timestamp
+          })
+        });
+        return res.status(200).json(response);
+      } catch (error) {
+        console.error('Error fetching users and last messages:', error);
+        return res.status(500).json({ message: 'Server error.' });
+      }
+    });
+
+
+    app.get('/messages', async (req, res) => {
+      try {
+        const { sender, receiver } = req.query;
+
+        const messages = await messagesCollection.find({
+          $or: [
+            { sender, receiver },
+            { sender: receiver, receiver: sender }
+          ]
+        }).sort({ timestamp: 1 }).toArray();
+
+        res.json(messages);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to fetch messages" });
+      }
+    });
+
+
+    io.on('connect', (socket) => {
+      socket.on('authenticate', (userId) => {
+        socket.join(userId.toString());
+        console.log(`User ${userId} joined their room`);
+      });
+
+      socket.on('sendMessage', async (data) => {
+        console.log(data);
+
+        const message = {
+          sender: data.sender,
+          text: data.text,
+          receiver: data.receiver,
+          timestamp: new Date()
+        };
+
+        await messagesCollection.insertOne(message);
+
+        io.to(data.receiver).emit('receiveMessage', message);
+
+      });
+
+      socket.on('disconnect', () => {
+        console.log('User disconnected:', socket.id);
+      });
+    });
+
+
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
@@ -377,6 +489,6 @@ app.get('/', (req, res) => {
   res.send('Hello Programmer!')
 })
 
-app.listen(port, () => {
-  console.log(`Team Project is running on port ${port}`)
-})
+server.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
+});
