@@ -88,6 +88,8 @@ async function run() {
 
     app.post('/posts', async (req, res) => {
       const post = req.body
+      const timestamp = new Date()
+      post.timestamp = timestamp;
       const result = await postCollection.insertOne(post)
       res.send(result)
     })
@@ -188,13 +190,13 @@ async function run() {
 
       const result = await claimCollection.updateOne(query, updateDoc);
 
-      if (status === 'verified') {
-        const claim = await claimCollection.findOne(query);
-        await postCollection.updateOne(
-          { _id: new ObjectId(claim.postId) },
-          { $set: { type: 'item-recovered' } }
-        );
-      }
+      // if (status === 'verified') {
+      //   const claim = await claimCollection.findOne(query);
+      //   await postCollection.updateOne(
+      //     { _id: new ObjectId(claim.postId) },
+      //     { $set: { type: 'item-recovered' } }
+      //   );
+      // }
 
       res.send(result);
     });
@@ -420,7 +422,7 @@ async function run() {
             userName: user.name,
             email: user.email,
             photoURL: user.photoURL,
-            lastMessage: text.length > 23 ? text.slice(0, 6) + "..." : text,
+            lastMessage: text.length > 15 ? text.slice(0, 15) + "..." : text,
             timestamp: chatUsers[user._id.toString()].timestamp
           })
         });
