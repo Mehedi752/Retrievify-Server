@@ -404,7 +404,9 @@ async function run() {
           if (!chatUsers[otherUserId] || new Date(msg.timestamp) > new Date(chatUsers[otherUserId].timestamp)) {
             chatUsers[otherUserId] = {
               lastMessage: msg.text,
-              timestamp: msg.timestamp
+              receiver: msg.receiver,
+              timestamp: msg.timestamp,
+              lastReadTimestamp: msg.lastReadTimestamp,
             };
           }
         }
@@ -417,13 +419,22 @@ async function run() {
         }).toArray();
 
         const response = users.map(user => {
-          let text = chatUsers[user._id.toString()].lastMessage
+          let chatUser = chatUsers[user._id.toString()]
+          let text = chatUser.lastMessage
+          let lastReadTimestamp = chatUser.lastReadTimestamp
+          let timestamp = chatUser.timestamp 
           return ({
             userName: user.name,
             email: user.email,
             photoURL: user.photoURL,
+<<<<<<< HEAD
             lastMessage: text.length > 15 ? text.slice(0, 15) + "..." : text,
             timestamp: chatUsers[user._id.toString()].timestamp
+=======
+            lastMessage: text.length > 23 ? text.slice(0, 6) + "..." : text,
+            timestamp: timestamp,
+            isRead:  ((currentUserId===chatUser.receiver) && !lastReadTimestamp) ? true : false ,
+>>>>>>> 38e6ee835825ee90ef524784faf7f479454bb8e1
           })
         });
         return res.status(200).json(response);
@@ -445,6 +456,14 @@ async function run() {
           ]
         }).sort({ timestamp: 1 }).toArray();
 
+        const lastMessage = messages[messages.length - 1];
+        if ((messages.length > 0) && (sender === lastMessage.receiver)) {
+          await messagesCollection.updateOne(
+            { _id: lastMessage._id },
+            { $set: { lastReadTimestamp: new Date() } }
+          );
+        }
+
         res.json(messages);
       } catch (error) {
         res.status(500).json({ error: "Failed to fetch messages" });
@@ -452,26 +471,48 @@ async function run() {
     });
 
 
+    app.delete('/messages/:id', async (req, res) => {
+      try {
+        const messageId = req.params.id;
+
+        const result = await messagesCollection.deleteOne({ _id: new ObjectId(messageId) });
+
+        if (result.deletedCount === 1) {
+          res.json({ success: true, message: "Message deleted successfully" });
+        } else {
+          res.status(404).json({ success: false, error: "Message not found" });
+        }
+      } catch (error) {
+        res.status(500).json({ success: false, error: "Failed to delete message" });
+      }
+    });
+
+
     io.on('connect', (socket) => {
       socket.on('authenticate', (userId) => {
         socket.join(userId.toString());
-        console.log(`User ${userId} joined their room`);
       });
 
       socket.on('sendMessage', async (data) => {
-        console.log(data);
-
         const message = {
           sender: data.sender,
           text: data.text,
           receiver: data.receiver,
-          timestamp: new Date()
+          timestamp: new Date(),
         };
-
         await messagesCollection.insertOne(message);
 
-        io.to(data.receiver).emit('receiveMessage', message);
-
+        io.to(data.receiver).emit('receiveMessage', message)
+      });
+      socket.on('messageRead', async (messageId) => {
+        try { 
+          await messagesCollection.updateOne(
+            { _id: new ObjectId(messageId) },
+            { $set: { lastReadTimestamp: new Date() } }
+          );
+        } catch (error) {
+          console.error("Error updating message read status:", error);
+        }
       });
 
       socket.on('disconnect', () => {
