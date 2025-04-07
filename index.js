@@ -422,19 +422,14 @@ async function run() {
           let chatUser = chatUsers[user._id.toString()]
           let text = chatUser.lastMessage
           let lastReadTimestamp = chatUser.lastReadTimestamp
-          let timestamp = chatUser.timestamp 
+          let timestamp = chatUser.timestamp
           return ({
             userName: user.name,
             email: user.email,
             photoURL: user.photoURL,
-<<<<<<< HEAD
             lastMessage: text.length > 15 ? text.slice(0, 15) + "..." : text,
-            timestamp: chatUsers[user._id.toString()].timestamp
-=======
-            lastMessage: text.length > 23 ? text.slice(0, 6) + "..." : text,
-            timestamp: timestamp,
-            isRead:  ((currentUserId===chatUser.receiver) && !lastReadTimestamp) ? true : false ,
->>>>>>> 38e6ee835825ee90ef524784faf7f479454bb8e1
+            timestamp: chatUsers[user._id.toString()].timestamp,
+            isRead: ((currentUserId === chatUser.receiver) && !lastReadTimestamp) ? true : false,
           })
         });
         return res.status(200).json(response);
@@ -505,7 +500,7 @@ async function run() {
         io.to(data.receiver).emit('receiveMessage', message)
       });
       socket.on('messageRead', async (messageId) => {
-        try { 
+        try {
           await messagesCollection.updateOne(
             { _id: new ObjectId(messageId) },
             { $set: { lastReadTimestamp: new Date() } }
