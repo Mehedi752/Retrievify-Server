@@ -46,12 +46,12 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect()
+    // await client.connect()
     // Send a ping to confirm a successful connection
-    await client.db('admin').command({ ping: 1 })
-    console.log(
-      'Pinged your deployment. You successfully connected to MongoDB!'
-    )
+    // await client.db('admin').command({ ping: 1 })
+    // console.log(
+    //   'Pinged your deployment. You successfully connected to MongoDB!'
+    // )
 
     const userCollection = client.db('teamProject').collection('users');
     const postCollection = client.db('teamProject').collection('posts');
@@ -302,10 +302,10 @@ async function run() {
         total_amount: payment.amount,
         currency: 'BDT',
         tran_id: transactionId,
-        success_url: 'http://localhost:5000/success-payment',
-        fail_url: 'http://localhost:5173/fail',
-        cancel_url: 'http://localhost:5173/cancel',
-        ipn_url: 'http://localhost:5000/ipn-success-payment',
+        success_url: 'https://retrievify-server.onrender.com/success-payment',
+        fail_url: 'https://retrievify-cdb75.web.app/fail',
+        cancel_url: 'https://retrievify-cdb75.web.app/cancel',
+        ipn_url: 'https://retrievify-server.onrender.com/ipn-success-payment',
         shipping_method: 'Courier',
         product_name: 'Computer.',
         product_category: 'Electronic',
@@ -363,7 +363,7 @@ async function run() {
         }
       };
       const result = await paymentCollection.updateOne(query, updateDoc);
-      res.redirect('http://localhost:5173/success')
+      res.redirect('https://retrievify-cdb75.web.app')
     })
 
 
